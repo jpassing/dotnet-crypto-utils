@@ -45,9 +45,23 @@ namespace CryptoUtils.Test
         }
 
         [Test]
-        public void WhenRsaKeyExportedAndImported_ThenKeyIsSame()
+        public void WhenExportingAndImportingCngRsaKey_ThenKeyIsSame()
         {
             var key = new RSACng();
+            var reimported = Pem.FromRsaPublicKey(key.ToRsaPublicKey());
+
+            Assert.IsTrue(Enumerable.SequenceEqual(
+                key.ExportParameters(false).Modulus,
+                reimported.ExportParameters(false).Modulus));
+            Assert.IsTrue(Enumerable.SequenceEqual(
+                key.ExportParameters(false).Exponent,
+                reimported.ExportParameters(false).Exponent));
+        }
+
+        [Test]
+        public void WhenExportingAndImportingCryptoApiKey_ThenKeyIsSame()
+        {
+            var key = new RSACryptoServiceProvider();
             var reimported = Pem.FromRsaPublicKey(key.ToRsaPublicKey());
 
             Assert.IsTrue(Enumerable.SequenceEqual(

@@ -1,7 +1,5 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.ComponentModel;
-using System.Diagnostics;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
@@ -11,28 +9,42 @@ namespace CryptoUtils
 {
     public static class Pem
     {
+        /// <summary>
+        /// Export a public key as RSAPublicKey PEM file.
+        /// </summary>
         public static string ToRsaPublicKey(this RSA key)
         {
-            //
-            // Export key as DER-formatted blob.
-            //
             byte[] derBlob;
 
 #if NET40_OR_GREATER
-            if (!(key is RSACng))
+            byte[] keyBlob;
+            uint keyBlobType;
+
+            //
+            // CNG and CryptoAPI use different key blob formats, and expose
+            // different APIs to create them.
+            //
+            if (key is RSACng)
             {
-                throw new NotImplementedException("Key must be a CNG key");
+                keyBlob = ((RSACng)key).Key.Export(CngKeyBlobFormat.GenericPublicBlob);
+                keyBlobType = UnsafeNativeMethods.CNG_RSA_PUBLIC_KEY_BLOB;
+            }
+            else
+            {
+                keyBlob = ((RSACryptoServiceProvider)key).ExportCspBlob(false);
+                keyBlobType = UnsafeNativeMethods.RSA_CSP_PUBLICKEYBLOB;
             }
 
-            var keyBlob = ((RSACng)key).Key.Export(CngKeyBlobFormat.GenericPublicBlob);
-
+            //
+            // Encode the key blob into DER.
+            //
             var keyBlobNative = Marshal.AllocHGlobal(keyBlob.Length);
             Marshal.Copy(keyBlob, 0, keyBlobNative, keyBlob.Length);
 
             if (!UnsafeNativeMethods.CryptEncodeObjectEx(
                 UnsafeNativeMethods.X509_ASN_ENCODING |
                     UnsafeNativeMethods.PKCS_7_ASN_ENCODING,
-                UnsafeNativeMethods.CNG_RSA_PUBLIC_KEY_BLOB,
+                keyBlobType,
                 keyBlobNative,
                 0,
                 IntPtr.Zero,
@@ -50,7 +62,7 @@ namespace CryptoUtils
                 if (!UnsafeNativeMethods.CryptEncodeObjectEx(
                     UnsafeNativeMethods.X509_ASN_ENCODING |
                         UnsafeNativeMethods.PKCS_7_ASN_ENCODING,
-                    UnsafeNativeMethods.CNG_RSA_PUBLIC_KEY_BLOB,
+                    keyBlobType,
                     keyBlobNative,
                     0,
                     IntPtr.Zero,
@@ -71,6 +83,9 @@ namespace CryptoUtils
             }
 
 #else
+            //
+            // Export key as DER-formatted blob.
+            //
             derBlob = key.ExportRSAPublicKey();
 #endif
 
@@ -87,6 +102,9 @@ namespace CryptoUtils
             return buffer.ToString();
         }
 
+        /// <summary>
+        /// Import a public key from a RSAPublicKey PEM file.
+        /// </summary>
         public static RSA FromRsaPublicKey(string pem)
         {
             if (!pem.StartsWith("-----BEGIN RSA PUBLIC KEY-----"))
