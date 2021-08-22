@@ -9,11 +9,14 @@ namespace CryptoUtils
 {
     public class RSAPublicKey
     {
+        private const string PemHeader = "-----BEGIN RSA PUBLIC KEY-----";
+        private const string PemFooter = "-----END RSA PUBLIC KEY-----";
+
         private readonly string pem;
 
         public RSAPublicKey(string pem)
         {
-            if (!pem.StartsWith("-----BEGIN RSA PUBLIC KEY-----"))
+            if (!pem.StartsWith(PemHeader))
             {
                 throw new FormatException("Missing RSA Public key header");
             }
@@ -196,11 +199,11 @@ namespace CryptoUtils
             // Wrap DER-formatted blob as PEM.
             //
             var buffer = new StringBuilder();
-            buffer.AppendLine("-----BEGIN RSA PUBLIC KEY-----");
+            buffer.AppendLine(PemHeader);
             buffer.AppendLine(Convert.ToBase64String(
                 derBlob,
                 Base64FormattingOptions.InsertLineBreaks));
-            buffer.AppendLine("-----END RSA PUBLIC KEY-----");
+            buffer.AppendLine(PemFooter);
 
             return new RSAPublicKey(buffer.ToString());
         }
