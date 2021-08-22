@@ -24,15 +24,19 @@ namespace CryptoUtils
             // CNG and CryptoAPI use different key blob formats, and expose
             // different APIs to create them.
             //
-            if (key is RSACng)
+            if (key is RSACng cngKey)
             {
-                keyBlob = ((RSACng)key).Key.Export(CngKeyBlobFormat.GenericPublicBlob);
+                keyBlob = cngKey.Key.Export(CngKeyBlobFormat.GenericPublicBlob);
                 keyBlobType = UnsafeNativeMethods.CNG_RSA_PUBLIC_KEY_BLOB;
+            }
+            else if (key is RSACryptoServiceProvider cryptoApiKey)
+            {
+                keyBlob = cryptoApiKey.ExportCspBlob(false);
+                keyBlobType = UnsafeNativeMethods.RSA_CSP_PUBLICKEYBLOB;
             }
             else
             {
-                keyBlob = ((RSACryptoServiceProvider)key).ExportCspBlob(false);
-                keyBlobType = UnsafeNativeMethods.RSA_CSP_PUBLICKEYBLOB;
+                throw new NotSupportedException("Unrecognized key type");
             }
 
             //
