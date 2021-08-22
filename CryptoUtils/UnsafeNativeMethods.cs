@@ -31,6 +31,11 @@ namespace CryptoUtils
         public const uint X509_ASN_ENCODING = 0x1;
         public const uint PKCS_7_ASN_ENCODING = 0x10000;
 
+        //
+        // Constants for CryptEncodeObject and CryptDecodeObject.
+        // 
+        // https://docs.microsoft.com/en-us/windows/win32/seccrypto/constants-for-cryptencodeobject-and-cryptdecodeobject
+        //
         public const uint RSA_CSP_PUBLICKEYBLOB = 19;
         public const uint CNG_RSA_PUBLIC_KEY_BLOB = 72;
     }
