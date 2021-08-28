@@ -6,7 +6,7 @@ using System.Security.Cryptography;
 namespace CryptoUtils.Test
 {
     [TestFixture]
-    public class TestRSAPublicKey
+    public class TestRsaPublicKeyPem
     {
         private const string RsaPublicKey =
             @"-----BEGIN RSA PUBLIC KEY-----
@@ -31,10 +31,10 @@ namespace CryptoUtils.Test
         public void WhenKeyHasWrongHeader_ThenConstructorThrowsException()
         {
             Assert.Throws<FormatException>(
-                () => new RSAPublicKey(string.Empty));
+                () => new RsaPublicKeyPem(string.Empty));
 
             Assert.Throws<FormatException>(
-                () => new RSAPublicKey(EccPublicKey));
+                () => new RsaPublicKeyPem(EccPublicKey));
         }
 
         [Test]
@@ -42,13 +42,13 @@ namespace CryptoUtils.Test
         {
             Assert.AreEqual(
                 RsaPublicKey,
-                new RSAPublicKey(RsaPublicKey).ToString());
+                new RsaPublicKeyPem(RsaPublicKey).ToString());
         }
 
         [Test]
         public void WhenKeyValid_ThenToRsaPublicKeyReturnsKey()
         {
-            var key = new RSAPublicKey(RsaPublicKey).ToKey();
+            var key = new RsaPublicKeyPem(RsaPublicKey).ToKey();
             Assert.IsNotNull(key);
         }
 
@@ -56,8 +56,8 @@ namespace CryptoUtils.Test
         public void WhenImportingAndExportingCngRsaKey_ThenKeyIsSame()
         {
             var key = new RSACng();
-            var exported = RSAPublicKey.FromKey(key).ToString();
-            var reimported = new RSAPublicKey(exported).ToKey();
+            var exported = RsaPublicKeyPem.FromKey(key).ToString();
+            var reimported = new RsaPublicKeyPem(exported).ToKey();
 
             Assert.IsTrue(Enumerable.SequenceEqual(
                 key.ExportParameters(false).Modulus,
@@ -71,8 +71,8 @@ namespace CryptoUtils.Test
         public void WhenImportingAndExportingCryptoApiKey_ThenKeyIsSame()
         {
             var key = new RSACryptoServiceProvider();
-            var exported = RSAPublicKey.FromKey(key).ToString();
-            var reimported = new RSAPublicKey(exported).ToKey();
+            var exported = RsaPublicKeyPem.FromKey(key).ToString();
+            var reimported = new RsaPublicKeyPem(exported).ToKey();
 
             Assert.IsTrue(Enumerable.SequenceEqual(
                 key.ExportParameters(false).Modulus,
