@@ -52,7 +52,7 @@ namespace CryptoUtils
         }
 
         [StructLayout(LayoutKind.Sequential)]
-        struct CRYPT_BIT_BLOB
+        public struct CRYPT_BIT_BLOB
         {
             public uint cbData;
             public IntPtr pbData;
@@ -60,7 +60,7 @@ namespace CryptoUtils
         }
 
         [StructLayout(LayoutKind.Sequential)]
-        struct CERT_PUBLIC_KEY_INFO
+        public struct CERT_PUBLIC_KEY_INFO
         {
             public CRYPT_ALGORITHM_IDENTIFIER Algorithm;
             public CRYPT_BIT_BLOB PublicKey;

@@ -1,6 +1,8 @@
 ﻿using System;
+using System.ComponentModel;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -11,6 +13,7 @@ namespace CryptoUtils
     /// </summary>
     public class X509PublicKeyPem
     {
+        private const string RsaOid = "1.2.840.113549.1.1.1";
         private const string PemHeader = "-----BEGIN PUBLIC KEY-----";
         private const string PemFooter = "-----END PUBLIC KEY-----";
 
@@ -49,18 +52,86 @@ namespace CryptoUtils
             // Import key.
             //
 #if NET40_OR_GREATER
-            var keyBlob = CryptoApi.RsaPublicKeyBlobFromDer(
-                derBlob,
-                UnsafeNativeMethods.X509_PUBLIC_KEY_INFO);
 
+            using (var derBlobNative = LocalAllocHandle.Alloc(derBlob.Length))
+            {
+                Marshal.Copy(
+                    derBlob,
+                    0,
+                    derBlobNative.DangerousGetHandle(),
+                    derBlob.Length);
 
-            //keyBlob = CryptoApi.RsaPublicKeyBlobFromDer(
-            //    keyBlob,
-            //    UnsafeNativeMethods.RSA_CSP_PUBLICKEYBLOB);
+                //
+                // Decode DER blob into a CERT_PUBLIC_KEY_INFO.
+                //
 
-            return new RSACng(CngKey.Import(
-                keyBlob,
-                CngKeyBlobFormat.GenericPublicBlob));
+                if (UnsafeNativeMethods.CryptDecodeObjectEx(
+                    UnsafeNativeMethods.X509_ASN_ENCODING |
+                        UnsafeNativeMethods.PKCS_7_ASN_ENCODING,
+                    UnsafeNativeMethods.X509_PUBLIC_KEY_INFO,
+                    derBlobNative.DangerousGetHandle(),
+                    (uint)derBlob.Length,
+                    UnsafeNativeMethods.CRYPT_DECODE_ALLOC_FLAG,
+                    IntPtr.Zero,
+                    out var certInfoHandle,
+                    out var certInfoSize))
+                {
+                    using (certInfoHandle)
+                    {
+                        //
+                        // Check that the CERT_PUBLIC_KEY_INFO contains an RSA public key.
+                        //
+                        var certInfo = Marshal.PtrToStructure<UnsafeNativeMethods.CERT_PUBLIC_KEY_INFO>(
+                            certInfoHandle.DangerousGetHandle());
+
+                        if (certInfo.Algorithm.pszObjId != RsaOid)
+                        {
+                            throw new CryptographicException("Not an RSA public key");
+                        }
+
+                        //
+                        // Decode the RSA public key.
+                        //
+                        if (UnsafeNativeMethods.CryptDecodeObjectEx(
+                            UnsafeNativeMethods.X509_ASN_ENCODING |
+                                UnsafeNativeMethods.PKCS_7_ASN_ENCODING,
+                            UnsafeNativeMethods.RSA_CSP_PUBLICKEYBLOB,
+                            certInfo.PublicKey.pbData,
+                            certInfo.PublicKey.cbData,
+                            UnsafeNativeMethods.CRYPT_DECODE_ALLOC_FLAG,
+                            IntPtr.Zero,
+                            out var keyBlob,
+                            out var keyBlobSize))
+                        {
+                            using (keyBlob)
+                            {
+                                var keyBlobBytes = new byte[keyBlobSize];
+                                Marshal.Copy(
+                                    keyBlob.DangerousGetHandle(),
+                                    keyBlobBytes,
+                                    0,
+                                    (int)keyBlobSize);
+
+                                return new RSACng(CngKey.Import(
+                                    keyBlobBytes,
+                                    CngKeyBlobFormat.GenericPublicBlob));
+                            }
+                        }
+                        else
+                        {
+                            throw new CryptographicException(
+                                "Failed to decode RSA public key from CERT_PUBLIC_KEY_INFO",
+                                new Win32Exception());
+                        }
+                    }
+                }
+                else
+                {
+                    throw new CryptographicException(
+                        "Failed to decode DER blob into CERT_PUBLIC_KEY_INFO",
+                        new Win32Exception());
+                }
+            }
 #else
             var key = new RSACng();
             key.ImportSubjectPublicKeyInfo(derBlob, out var _);
