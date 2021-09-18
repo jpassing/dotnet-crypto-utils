@@ -16,12 +16,12 @@ namespace CryptoUtils
             byte[] derBlob,
             uint keyBlobType)
         {
-            using (var derBlobNative = LocalAllocHandle.Alloc(derBlob.Length))
+            using (var derBlobHandle = LocalAllocHandle.Alloc(derBlob.Length))
             {
                 Marshal.Copy(
                     derBlob,
                     0,
-                    derBlobNative.DangerousGetHandle(),
+                    derBlobHandle.DangerousGetHandle(),
                     derBlob.Length);
 
                 //
@@ -32,18 +32,18 @@ namespace CryptoUtils
                     UnsafeNativeMethods.X509_ASN_ENCODING |
                         UnsafeNativeMethods.PKCS_7_ASN_ENCODING,
                     keyBlobType,
-                    derBlobNative.DangerousGetHandle(),
+                    derBlobHandle.DangerousGetHandle(),
                     (uint)derBlob.Length,
                     UnsafeNativeMethods.CRYPT_DECODE_ALLOC_FLAG,
                     IntPtr.Zero,
-                    out var keyBlob,
+                    out var keyBlobHandle,
                     out var keyBlobSize))
                 {
-                    using (keyBlob)
+                    using (keyBlobHandle)
                     {
                         var keyBlobBytes = new byte[keyBlobSize];
                         Marshal.Copy(
-                            keyBlob.DangerousGetHandle(),
+                            keyBlobHandle.DangerousGetHandle(),
                             keyBlobBytes,
                             0,
                             (int)keyBlobSize);
@@ -54,7 +54,7 @@ namespace CryptoUtils
                 else
                 {
                     throw new CryptographicException(
-                        "Failed to calculate buffer size for decoding key blob",
+                        "Failed to decode key blob from DER",
                         new Win32Exception());
                 }
             }
@@ -64,29 +64,29 @@ namespace CryptoUtils
             byte[] keyBlob,
             uint keyBlobType)
         {
-            using (var keyBlobNative = LocalAllocHandle.Alloc(keyBlob.Length))
+            using (var keyBlobHandle = LocalAllocHandle.Alloc(keyBlob.Length))
             {
                 Marshal.Copy(
                     keyBlob, 
                     0, 
-                    keyBlobNative.DangerousGetHandle(), 
+                    keyBlobHandle.DangerousGetHandle(), 
                     keyBlob.Length);
 
                 if (UnsafeNativeMethods.CryptEncodeObjectEx(
                     UnsafeNativeMethods.X509_ASN_ENCODING |
                         UnsafeNativeMethods.PKCS_7_ASN_ENCODING,
                     keyBlobType,
-                    keyBlobNative.DangerousGetHandle(),
+                    keyBlobHandle.DangerousGetHandle(),
                     UnsafeNativeMethods.CRYPT_DECODE_ALLOC_FLAG,
                     IntPtr.Zero,
-                    out var derBlobNative,
+                    out var derBlobHandle,
                     out uint derBlobSize))
                 {
-                    using (derBlobNative)
+                    using (derBlobHandle)
                     {
                         var derBlob = new byte[derBlobSize];
                         Marshal.Copy(
-                            derBlobNative.DangerousGetHandle(),
+                            derBlobHandle.DangerousGetHandle(),
                             derBlob,
                             0,
                             (int)derBlobSize);
@@ -96,7 +96,7 @@ namespace CryptoUtils
                 else
                 {
                     throw new CryptographicException(
-                        "Failed to calculate buffer size for encoding key blob",
+                        "Failed to encode key blob into DER",
                         new Win32Exception());
                 }
             }

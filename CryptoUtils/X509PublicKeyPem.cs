@@ -43,7 +43,7 @@ namespace CryptoUtils
             //
             // Extract DER-formatted blob.
             //
-            var derBlob = Convert.FromBase64String(string.Concat(pem
+            var certKeyInfoDer = Convert.FromBase64String(string.Concat(pem
                 .Split('\n')
                 .Select(s => s.Trim())
                 .Where(line => !line.StartsWith("-----"))));
@@ -53,13 +53,13 @@ namespace CryptoUtils
             //
 #if NET40_OR_GREATER
 
-            using (var derBlobNative = LocalAllocHandle.Alloc(derBlob.Length))
+            using (var certKeyInfoDerHandle = LocalAllocHandle.Alloc(certKeyInfoDer.Length))
             {
                 Marshal.Copy(
-                    derBlob,
+                    certKeyInfoDer,
                     0,
-                    derBlobNative.DangerousGetHandle(),
-                    derBlob.Length);
+                    certKeyInfoDerHandle.DangerousGetHandle(),
+                    certKeyInfoDer.Length);
 
                 //
                 // Decode DER blob into a CERT_PUBLIC_KEY_INFO.
@@ -69,20 +69,20 @@ namespace CryptoUtils
                     UnsafeNativeMethods.X509_ASN_ENCODING |
                         UnsafeNativeMethods.PKCS_7_ASN_ENCODING,
                     UnsafeNativeMethods.X509_PUBLIC_KEY_INFO,
-                    derBlobNative.DangerousGetHandle(),
-                    (uint)derBlob.Length,
+                    certKeyInfoDerHandle.DangerousGetHandle(),
+                    (uint)certKeyInfoDer.Length,
                     UnsafeNativeMethods.CRYPT_DECODE_ALLOC_FLAG,
                     IntPtr.Zero,
-                    out var certInfoHandle,
-                    out var certInfoSize))
+                    out var certKeyInfoHandle,
+                    out var certKeyInfoSize))
                 {
-                    using (certInfoHandle)
+                    using (certKeyInfoHandle)
                     {
                         //
                         // Check that the CERT_PUBLIC_KEY_INFO contains an RSA public key.
                         //
                         var certInfo = Marshal.PtrToStructure<UnsafeNativeMethods.CERT_PUBLIC_KEY_INFO>(
-                            certInfoHandle.DangerousGetHandle());
+                            certKeyInfoHandle.DangerousGetHandle());
 
                         if (certInfo.Algorithm.pszObjId != RsaOid)
                         {
@@ -100,17 +100,17 @@ namespace CryptoUtils
                             certInfo.PublicKey.cbData,
                             UnsafeNativeMethods.CRYPT_DECODE_ALLOC_FLAG,
                             IntPtr.Zero,
-                            out var keyBlob,
-                            out var keyBlobSize))
+                            out var cspKeyBlob,
+                            out var cspKeyBlobSize))
                         {
-                            using (keyBlob)
+                            using (cspKeyBlob)
                             {
-                                var keyBlobBytes = new byte[keyBlobSize];
+                                var keyBlobBytes = new byte[cspKeyBlobSize];
                                 Marshal.Copy(
-                                    keyBlob.DangerousGetHandle(),
+                                    cspKeyBlob.DangerousGetHandle(),
                                     keyBlobBytes,
                                     0,
-                                    (int)keyBlobSize);
+                                    (int)cspKeyBlobSize);
 
                                 return new RSACng(CngKey.Import(
                                     keyBlobBytes,
@@ -134,7 +134,7 @@ namespace CryptoUtils
             }
 #else
             var key = new RSACng();
-            key.ImportSubjectPublicKeyInfo(derBlob, out var _);
+            key.ImportSubjectPublicKeyInfo(certKeyInfoDer, out var _);
             return key;
 #endif
         }
@@ -144,36 +144,116 @@ namespace CryptoUtils
         /// </summary>
         public static X509PublicKeyPem FromKey(RSA key)
         {
-            byte[] derBlob;
+            byte[] certKeyInfoDer;
 
 #if NET40_OR_GREATER
             //
             // CNG and CryptoAPI use different key blob formats, and expose
             // different APIs to create them.
             //
+            byte[] cspBlob;
+            uint cspBlobType;
             if (key is RSACng cngKey)
             {
-                var keyBlob = cngKey.Key.Export(CngKeyBlobFormat.GenericPublicBlob);
-                derBlob = CryptoApi.DerFromRsaPublicKeyBlob(
-                    keyBlob,
-                    UnsafeNativeMethods.X509_PUBLIC_KEY_INFO);
+                cspBlob = cngKey.Key.Export(CngKeyBlobFormat.GenericPublicBlob);
+                cspBlobType = UnsafeNativeMethods.CNG_RSA_PUBLIC_KEY_BLOB;
             }
             else if (key is RSACryptoServiceProvider cryptoApiKey)
             {
-                var keyBlob = cryptoApiKey.ExportCspBlob(false);
-                derBlob = CryptoApi.DerFromRsaPublicKeyBlob(
-                    keyBlob,
-                    UnsafeNativeMethods.X509_PUBLIC_KEY_INFO);
+                cspBlob = cryptoApiKey.ExportCspBlob(false);
+                cspBlobType = UnsafeNativeMethods.RSA_CSP_PUBLICKEYBLOB;
             }
             else
             {
                 throw new NotSupportedException("Unrecognized key type");
             }
+
+            //
+            // Decode CSP blob into DER.
+            //
+            using (var cspBlobHandle = LocalAllocHandle.Alloc(cspBlob.Length))
+            {
+                Marshal.Copy(
+                    cspBlob,
+                    0,
+                    cspBlobHandle.DangerousGetHandle(),
+                    cspBlob.Length);
+
+                if (UnsafeNativeMethods.CryptEncodeObjectEx(
+                    UnsafeNativeMethods.X509_ASN_ENCODING |
+                        UnsafeNativeMethods.PKCS_7_ASN_ENCODING,
+                    cspBlobType,
+                    cspBlobHandle.DangerousGetHandle(),
+                    UnsafeNativeMethods.CRYPT_DECODE_ALLOC_FLAG,
+                    IntPtr.Zero,
+                    out var rsaDerHandle,
+                    out uint rsaDerSize))
+                {
+                    using (rsaDerHandle)
+                    {
+                        //
+                        // Wrap the DER blob into a CERT_PUBLIC_KEY_INFO.
+                        //
+                        var certKeyInfo = new UnsafeNativeMethods.CERT_PUBLIC_KEY_INFO()
+                        {
+                            Algorithm = new UnsafeNativeMethods.CRYPT_ALGORITHM_IDENTIFIER()
+                            {
+                                pszObjId = RsaOid
+                            },
+                            PublicKey = new UnsafeNativeMethods.CRYPT_BIT_BLOB()
+                            {
+                                pbData = rsaDerHandle.DangerousGetHandle(),
+                                cbData = rsaDerSize
+                            }
+                        };
+
+                        using (var certKeyInfoHandle = LocalAllocHandle.Alloc(Marshal.SizeOf<UnsafeNativeMethods.CERT_PUBLIC_KEY_INFO>()))
+                        {
+                            Marshal.StructureToPtr(certKeyInfo, certKeyInfoHandle.DangerousGetHandle(), false);
+
+                            if (UnsafeNativeMethods.CryptEncodeObjectEx(
+                                UnsafeNativeMethods.X509_ASN_ENCODING |
+                                    UnsafeNativeMethods.PKCS_7_ASN_ENCODING,
+                                UnsafeNativeMethods.X509_PUBLIC_KEY_INFO,
+                                certKeyInfoHandle.DangerousGetHandle(),
+                                UnsafeNativeMethods.CRYPT_DECODE_ALLOC_FLAG,
+                                IntPtr.Zero,
+                                out var certKeyInfoDerHandle,
+                                out uint certKeyInfoDerSize))
+                            {
+                                using (certKeyInfoDerHandle)
+                                {
+                                    certKeyInfoDer = new byte[certKeyInfoDerSize];
+                                    Marshal.Copy(
+                                        certKeyInfoDerHandle.DangerousGetHandle(),
+                                        certKeyInfoDer,
+                                        0,
+                                        (int)certKeyInfoDerSize);
+                                }
+                            }
+                            else
+                            {
+                                throw new CryptographicException(
+                                    "Failed to encode CERT_PUBLIC_KEY_INFO",
+                                    new Win32Exception());
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    throw new CryptographicException(
+                        "Failed to encode CSP blob",
+                        new Win32Exception());
+                }
+            }
+
+
 #else
             //
             // Export key as DER-formatted blob.
             //
-            derBlob = key.ExportSubjectPublicKeyInfo();
+            certKeyInfoDer = key.ExportSubjectPublicKeyInfo();
 #endif
 
             //
@@ -182,7 +262,7 @@ namespace CryptoUtils
             var buffer = new StringBuilder();
             buffer.AppendLine(PemHeader);
             buffer.AppendLine(Convert.ToBase64String(
-                derBlob,
+                certKeyInfoDer,
                 Base64FormattingOptions.InsertLineBreaks));
             buffer.AppendLine(PemFooter);
 
