@@ -36,7 +36,31 @@ namespace CryptoUtils
         // 
         // https://docs.microsoft.com/en-us/windows/win32/seccrypto/constants-for-cryptencodeobject-and-cryptdecodeobject
         //
+        public const uint X509_PUBLIC_KEY_INFO = 8;
         public const uint RSA_CSP_PUBLICKEYBLOB = 19;
         public const uint CNG_RSA_PUBLIC_KEY_BLOB = 72;
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct CRYPT_ALGORITHM_IDENTIFIER
+        {
+            [MarshalAs(UnmanagedType.LPStr)] public string pszObjId;
+            public int cbData;
+            public IntPtr pbData;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        struct CRYPT_BIT_BLOB
+        {
+            public uint cbData;
+            public IntPtr pbData;
+            public uint cUnusedBits;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        struct CERT_PUBLIC_KEY_INFO
+        {
+            public CRYPT_ALGORITHM_IDENTIFIER Algorithm;
+            public CRYPT_BIT_BLOB PublicKey;
+        }
     }
 }

@@ -1,6 +1,11 @@
 ﻿using System;
 using System.ComponentModel;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
+
+
+// Resources:
+// https://github.com/microsoft/Windows-universal-samples/blob/main/Samples/MicrosoftPassport/Server/Models/SubjectPublicKeyInfo.cs
 
 namespace CryptoUtils
 {
@@ -30,9 +35,9 @@ namespace CryptoUtils
                     IntPtr.Zero,
                     out var keyBlobSize))
                 {
-                    throw new Win32Exception(
-                        Marshal.GetLastWin32Error(),
-                        "Failed to extract RSA public key blob");
+                    throw new CryptographicException(
+                        "Failed to calculate buffer size for decoding key blob",
+                        new Win32Exception());
                 }
 
                 var keyBlob = Marshal.AllocHGlobal((int)keyBlobSize);
@@ -49,9 +54,9 @@ namespace CryptoUtils
                         keyBlob,
                         out keyBlobSize))
                     {
-                        throw new Win32Exception(
-                            Marshal.GetLastWin32Error(),
-                            "Failed to extract RSA public key blob");
+                        throw new CryptographicException(
+                            "Failed to decode key blob",
+                            new Win32Exception());
                     }
 
                     var keyBlobBytes = new byte[keyBlobSize];
@@ -87,9 +92,9 @@ namespace CryptoUtils
                 IntPtr.Zero,
                 out uint derBlobSize))
             {
-                throw new Win32Exception(
-                    Marshal.GetLastWin32Error(),
-                    "Failed to encode RSA public key blob");
+                throw new CryptographicException(
+                    "Failed to calculate buffer size for encoding key blob",
+                    new Win32Exception());
             }
 
             var derBlobNative = Marshal.AllocHGlobal((int)derBlobSize);
@@ -105,9 +110,9 @@ namespace CryptoUtils
                     derBlobNative,
                     out derBlobSize))
                 {
-                    throw new Win32Exception(
-                        Marshal.GetLastWin32Error(),
-                        "Failed to encode RSA public key blob");
+                    throw new CryptographicException(
+                        "Failed to encode key blob",
+                        new Win32Exception());
                 }
 
                 var derBlob = new byte[derBlobSize];

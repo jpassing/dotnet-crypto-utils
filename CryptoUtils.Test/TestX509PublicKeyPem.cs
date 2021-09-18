@@ -6,8 +6,21 @@ using System.Security.Cryptography;
 namespace CryptoUtils.Test
 {
     [TestFixture]
-    public class TestRsaPublicKeyPem
+    public class TestX509PublicKeyPem
     {
+        private const string X509PublicKey =
+            @"-----BEGIN PUBLIC KEY-----
+            MIIBojANBgkqhkiG9w0BAQEFAAOCAY8AMIIBigKCAYEAyItKCYN/yAzDEv2HaDaq
+            kK3J5AjerXmP1ZhBa8r5M5xQTkHPnkOkOc1KPly/xH4hmBVf00dfGZ91hTez1iD0
+            XKkmfwP4TGXZ1YeqvlS44bvt3yZCR09aA0cGwS5Dp6xFIlz3aahMaV3gXwqaNLxW
+            Xy5qJSZLIXhxAd0uqlnudweoMgxMbmq8vSMGmx8U8r3x2ldYhdcDYD+wAJCDGPeI
+            vNTcHmFujYH8cMobFjewQcGDtf2lOtHn6Q15h6cuENpI5q6Rl7Xmim+Xq6fwiAf7
+            ivRRgtOTncBgBVPhjB6vmtSP1CbF6Mpww/ZPTuavBr3dCKmywBRiVHbndOZWREnB
+            gdY3koteVKcIVWwzLwzjPJOX1jTWGdCkX/vs6qFOgfnFOd0mDEywF+AwBAXXADw4
+            GxZllq/lzBNf6JWNLsHLQY19ke8doCkc4/C2Gn7+xJKqM/YVWEZxVR+WhqkDCpJV
+            wtUlPtOf2x3nNM/kM8p8pZKDU6SWNlbuRgYH2GJa8ZPrAgMBAAE=
+            -----END PUBLIC KEY-----";
+
         private const string RsaPublicKey =
             @"-----BEGIN RSA PUBLIC KEY-----
             MIIBigKCAYEAq3DnhgYgLVJknvDA3clATozPtjI7yauqD4/ZuqgZn4KzzzkQ4BzJ
@@ -21,34 +34,28 @@ namespace CryptoUtils.Test
             XwJbrAbpGUDlAgMBAAE=
             -----END RSA PUBLIC KEY-----";
 
-        private const string EccPublicKey =
-            @"-----BEGIN PUBLIC KEY-----
-            MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEAACGNU1rVGpVfFyfPlx4Ydz0pQ0N
-            2BCrIQpSccUmJbg6v1WYfYZNR9RAQuaONRAla0dhLC6NZ7oslIEW8iNdjA==
-            -----END PUBLIC KEY-----";
-
         [Test]
         public void WhenKeyHasWrongHeader_ThenConstructorThrowsException()
         {
             Assert.Throws<FormatException>(
-                () => new RsaPublicKeyPem(string.Empty));
+                () => new X509PublicKeyPem(string.Empty));
 
             Assert.Throws<FormatException>(
-                () => new RsaPublicKeyPem(EccPublicKey));
+                () => new X509PublicKeyPem(RsaPublicKey));
         }
 
         [Test]
         public void WhenKeyValid_ThenToStringReturnsPem()
         {
             Assert.AreEqual(
-                RsaPublicKey,
-                new RsaPublicKeyPem(RsaPublicKey).ToString());
+                X509PublicKey,
+                new X509PublicKeyPem(X509PublicKey).ToString());
         }
 
         [Test]
         public void WhenKeyValid_ThenToKeyReturnsKey()
         {
-            var key = new RsaPublicKeyPem(RsaPublicKey).ToKey();
+            var key = new X509PublicKeyPem(X509PublicKey).ToKey();
             Assert.IsNotNull(key);
         }
 
@@ -56,8 +63,8 @@ namespace CryptoUtils.Test
         public void WhenImportingAndExportingCngRsaKey_ThenKeyIsSame()
         {
             var key = new RSACng();
-            var exported = RsaPublicKeyPem.FromKey(key).ToString();
-            var reimported = new RsaPublicKeyPem(exported);
+            var exported = X509PublicKeyPem.FromKey(key).ToString();
+            var reimported = new X509PublicKeyPem(exported);
 
             Assert.AreEqual(exported, reimported.ToString());
             Assert.IsTrue(Enumerable.SequenceEqual(
@@ -72,8 +79,8 @@ namespace CryptoUtils.Test
         public void WhenImportingAndExportingCryptoApiKey_ThenKeyIsSame()
         {
             var key = new RSACryptoServiceProvider();
-            var exported = RsaPublicKeyPem.FromKey(key).ToString();
-            var reimported = new RsaPublicKeyPem(exported);
+            var exported = X509PublicKeyPem.FromKey(key).ToString();
+            var reimported = new X509PublicKeyPem(exported);
 
             Assert.AreEqual(exported, reimported.ToString());
             Assert.IsTrue(Enumerable.SequenceEqual(
