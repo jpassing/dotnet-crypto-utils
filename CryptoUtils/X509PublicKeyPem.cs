@@ -207,7 +207,8 @@ namespace CryptoUtils
                             }
                         };
 
-                        using (var certKeyInfoHandle = LocalAllocHandle.Alloc(Marshal.SizeOf<UnsafeNativeMethods.CERT_PUBLIC_KEY_INFO>()))
+                        using (var certKeyInfoHandle = LocalAllocHandle.Alloc(
+                            Marshal.SizeOf<UnsafeNativeMethods.CERT_PUBLIC_KEY_INFO>()))
                         {
                             Marshal.StructureToPtr(certKeyInfo, certKeyInfoHandle.DangerousGetHandle(), false);
 
