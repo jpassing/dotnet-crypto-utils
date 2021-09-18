@@ -1,4 +1,6 @@
-﻿using System;
+﻿using Microsoft.Win32.SafeHandles;
+using System;
+using System.Runtime.ConstrainedExecution;
 using System.Runtime.InteropServices;
 
 namespace CryptoUtils
@@ -14,7 +16,7 @@ namespace CryptoUtils
             uint cbEncoded,
             uint dwFlags,
             IntPtr pDecodePara,
-            IntPtr pvStructInfo,
+            out LocalAllocHandle pvStructInfo,
             out uint pcbStructInfo);
 
         [DllImport("crypt32.dll", SetLastError = true)]
@@ -25,11 +27,12 @@ namespace CryptoUtils
             IntPtr pvStructInfo,
             uint dwFlags,
             IntPtr pDecodePara,
-            IntPtr pvEncoded,
+            out LocalAllocHandle pvEncoded,
             out uint pcbEncoded);
 
         public const uint X509_ASN_ENCODING = 0x1;
         public const uint PKCS_7_ASN_ENCODING = 0x10000;
+        public const uint CRYPT_DECODE_ALLOC_FLAG = 0x8000;
 
         //
         // Constants for CryptEncodeObject and CryptDecodeObject.
@@ -39,7 +42,7 @@ namespace CryptoUtils
         public const uint X509_PUBLIC_KEY_INFO = 8;
         public const uint RSA_CSP_PUBLICKEYBLOB = 19;
         public const uint CNG_RSA_PUBLIC_KEY_BLOB = 72;
-
+        
         [StructLayout(LayoutKind.Sequential)]
         public struct CRYPT_ALGORITHM_IDENTIFIER
         {
@@ -63,4 +66,29 @@ namespace CryptoUtils
             public CRYPT_BIT_BLOB PublicKey;
         }
     }
+
+    internal sealed class LocalAllocHandle : SafeHandleZeroOrMinusOneIsInvalid
+    {
+        private LocalAllocHandle() : base(ownsHandle: true) { }
+
+        public static LocalAllocHandle Alloc(int cb)
+        {
+            LocalAllocHandle handle = new LocalAllocHandle();
+            handle.AllocCore(cb);
+            return handle;
+        }
+
+        [ReliabilityContract(Consistency.WillNotCorruptState, Cer.MayFail)]
+        private void AllocCore(int cb)
+        {
+            SetHandle(Marshal.AllocHGlobal(cb));
+        }
+
+        protected override bool ReleaseHandle()
+        {
+            Marshal.FreeHGlobal(handle);
+            return true;
+        }
+    }
+
 }
